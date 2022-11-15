@@ -8,7 +8,7 @@ import (
 
 type bufferPool struct {
 	file  *os.File
-	pages []*page
+	pages []page
 }
 
 func newBufferPool(path string) (*bufferPool, error) {
@@ -27,7 +27,7 @@ func newBufferPool(path string) (*bufferPool, error) {
 		return nil, err
 	}
 
-	bp.pages = make([]*page, pageCount)
+	bp.pages = make([]page, pageCount)
 
 	return bp, nil
 }
@@ -39,7 +39,7 @@ func (bp *bufferPool) close() {
 		}
 	}
 	bp.file.Close()
-	bp.pages = []*page{} // Free memory
+	bp.pages = []page{} // Free memory
 }
 
 func (bp *bufferPool) getPageCount() (uint32, error) {
@@ -51,21 +51,13 @@ func (bp *bufferPool) getPageCount() (uint32, error) {
 	return pageCount, nil
 }
 
-func (bp *bufferPool) addPage() (*page, error) {
+func (bp *bufferPool) addPage() (page, error) {
 	pageCount, err := bp.getPageCount()
 	if err != nil {
 		return nil, err
 	}
 
-	page := &page{
-		index:      uint32(pageCount),
-		cachedData: make([]uint8, pageSize),
-	}
-
-	page.setKind(pageKindLeaf)
-	page.setNumCells(0)
-	page.setIsRoot(true)
-	page.setParentIndex(-1)
+	page := newLeafPage(pageCount, nil)
 
 	bp.pages = append(bp.pages, page)
 
@@ -74,7 +66,7 @@ func (bp *bufferPool) addPage() (*page, error) {
 	return page, nil
 }
 
-func (bp *bufferPool) getPage(pageIndex uint32) (*page, error) {
+func (bp *bufferPool) getPage(pageIndex uint32) (page, error) {
 	if len(bp.pages) <= int(pageIndex) {
 		// This page is not created yet!
 		return nil, fmt.Errorf("Invalid page index: %d\n", pageIndex)
@@ -82,15 +74,26 @@ func (bp *bufferPool) getPage(pageIndex uint32) (*page, error) {
 
 	if bp.pages[pageIndex] == nil {
 		// Page is not cached in memory, so let's allocate space for it
-		page := &page{
-			index:      pageIndex,
-			cachedData: make([]uint8, pageSize),
-		}
+		pageData := make([]uint8, pageSize)
 
 		pageOffset := pageIndex * pageSize
-		_, err := bp.file.ReadAt(page.cachedData, int64(pageOffset))
+		_, err := bp.file.ReadAt(pageData, int64(pageOffset))
 		if err != nil {
 			return nil, err
+		}
+
+		var page page
+		switch pageKind(pageData[0]) {
+		case pageKindHeader:
+			panic("TODO: import header page")
+		case pageKindUnallocated:
+			panic("TODO: import unallocated page")
+		case pageKindLeaf:
+			page = newLeafPage(pageIndex, pageData)
+		case pageKindInternal:
+			panic("TODO: import internal page")
+		default:
+			panic("invalid page kind")
 		}
 
 		bp.pages[pageIndex] = page
@@ -105,6 +108,6 @@ func (bp *bufferPool) flushPage(pageIndex uint32) error {
 		return errors.New("tried to flush unloaded page")
 	}
 
-	_, err := bp.file.WriteAt(page.cachedData, int64(pageIndex*pageSize))
+	_, err := bp.file.WriteAt(page.getData(), int64(pageIndex*pageSize))
 	return err
 }

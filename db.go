@@ -31,11 +31,13 @@ func (db *DB) Set(key, value []byte) error {
 		return err
 	}
 
-	if foundValue, _ := page.findCell(key); foundValue != nil {
+	tPage := page.(treePage)
+
+	if foundValue, _ := tPage.findCell(key); foundValue != nil {
 		panic("TODO: can't replace cells yet")
 	}
 
-	err = page.addCell(key, value)
+	err = tPage.addCell(key, value)
 	if err != nil {
 		return err
 	}
@@ -49,5 +51,7 @@ func (db *DB) Get(key []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	return page.findCell(key)
+	tPage := page.(treePage)
+
+	return tPage.findCell(key)
 }
