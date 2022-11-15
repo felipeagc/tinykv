@@ -1,2 +1,5 @@
 tinykv: $(wildcard *.go)
-	go build -o $@ main.go
+	go build -o $@ .
+
+clean:
+	rm tinykv
