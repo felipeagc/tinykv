@@ -14,7 +14,7 @@ const (
 	PAGE_SIZE uint32 = 4096
 
 	PageKindUnallocated PageKind = iota
-	PageKindInfo
+	PageKindHeader
 	PageKindLeaf
 	PageKindInternal
 )
@@ -62,7 +62,7 @@ func (page *Page) SetNumCells(numCells uint32) {
 }
 
 func (page *Page) GetFreeSpace() uint32 {
-	offset := page.IterCells(func(key, value []byte) bool {
+	offset := page.IterCells(func(key, value []byte, entryOffset uint32) bool {
 		return true
 	})
 	return uint32(PAGE_SIZE) - offset
@@ -70,12 +70,14 @@ func (page *Page) GetFreeSpace() uint32 {
 
 // Iterates through all of the cells of this page in order
 // and returns the final byte offset where the iteration ended.
-func (page *Page) IterCells(callback func(key, value []byte) bool) uint32 {
+func (page *Page) IterCells(callback func(key, value []byte, offset uint32) bool) uint32 {
 	offset := uint32(10)
 
 	switch page.GetKind() {
 	case PageKindLeaf:
 		for i := uint32(0); i < page.GetNumCells(); i++ {
+			entryOffset := offset
+
 			keyLen := binary.LittleEndian.Uint32(page.cachedData[offset : offset+4])
 			offset += 4
 			key := page.cachedData[offset : offset+keyLen]
@@ -86,12 +88,12 @@ func (page *Page) IterCells(callback func(key, value []byte) bool) uint32 {
 			value := page.cachedData[offset : offset+valueLen]
 			offset += valueLen
 
-			if !callback(key, value) {
+			if !callback(key, value, entryOffset) {
 				break
 			}
 		}
 	case PageKindInternal:
-		panic("unimplemented")
+		panic("TODO: IterCells for internal node")
 	default:
 		panic("invalid page kind")
 	}
@@ -101,43 +103,74 @@ func (page *Page) IterCells(callback func(key, value []byte) bool) uint32 {
 
 // Adds a cell to the page
 func (page *Page) AddCell(key, value []byte) error {
-	requiredSpace := uint32(len(key) + len(value) + 8)
-	freeSpace := page.GetFreeSpace()
-	if requiredSpace > freeSpace {
-		return fmt.Errorf("not enough space left in page. required: %d, free space: %d", requiredSpace, freeSpace)
+	switch page.GetKind() {
+	case PageKindLeaf:
+		requiredSpace := uint32(len(key) + len(value) + 8)
+		freeSpace := page.GetFreeSpace()
+		if requiredSpace > freeSpace {
+			return fmt.Errorf("not enough space left in page. required: %d, free space: %d", requiredSpace, freeSpace)
+		}
+
+		// Calculate the offset of the new cell
+		offset := uint32(PAGE_SIZE) - freeSpace
+		page.IterCells(func(entryKey, entryValue []byte, entryOffset uint32) bool {
+			if bytes.Compare(entryKey, key) == 1 {
+				// If we find a key that's greater than the one we're adding,
+				// we've found our insertion point
+				offset = entryOffset
+				return false
+			}
+			return true
+		})
+
+		rhsSize := uint32(PAGE_SIZE) - offset - freeSpace
+		if rhsSize > 0 {
+			rhsSrc := page.cachedData[offset : offset+rhsSize]
+			rhsDst := page.cachedData[offset+requiredSpace : offset+requiredSpace+rhsSize]
+			copy(rhsDst, rhsSrc)
+		}
+
+		keyLen := uint32(len(key))
+		valueLen := uint32(len(value))
+
+		binary.LittleEndian.PutUint32(page.cachedData[offset:offset+4], keyLen)
+		offset += 4
+		copy(page.cachedData[offset:offset+keyLen], key)
+		offset += keyLen
+
+		binary.LittleEndian.PutUint32(page.cachedData[offset:offset+4], valueLen)
+		offset += 4
+		copy(page.cachedData[offset:offset+valueLen], value)
+		offset += valueLen
+
+		page.SetNumCells(page.GetNumCells() + 1)
+	case PageKindInternal:
+		panic("TODO: AddCell for internal node")
+	default:
+		panic("invalid page kind")
 	}
-
-	keyLen := uint32(len(key))
-	valueLen := uint32(len(value))
-
-	offset := uint32(PAGE_SIZE) - freeSpace
-
-	binary.LittleEndian.PutUint32(page.cachedData[offset:offset+4], keyLen)
-	offset += 4
-	copy(page.cachedData[offset:offset+keyLen], key)
-	offset += keyLen
-
-	binary.LittleEndian.PutUint32(page.cachedData[offset:offset+4], valueLen)
-	offset += 4
-	copy(page.cachedData[offset:offset+valueLen], value)
-	offset += valueLen
-
-	page.SetNumCells(page.GetNumCells() + 1)
 
 	return nil
 }
 
-func (page *Page) FindCell(wantedKey []byte) ([]byte, error) {
+func (page *Page) FindCell(key []byte) ([]byte, error) {
 	var foundValue []byte = nil
 
-	page.IterCells(func(key, value []byte) bool {
-		if bytes.Equal(wantedKey, key) {
-			foundValue = make([]byte, len(value))
-			copy(foundValue, value)
-			return false
-		}
-		return true
-	})
+	switch page.GetKind() {
+	case PageKindLeaf:
+		page.IterCells(func(entryKey, entryValue []byte, entryOffset uint32) bool {
+			if bytes.Equal(key, entryKey) {
+				foundValue = make([]byte, len(entryValue))
+				copy(foundValue, entryValue)
+				return false
+			}
+			return true
+		})
+	case PageKindInternal:
+		panic("TODO: FindCell for internal node")
+	default:
+		panic("invalid page kind")
+	}
 
 	return foundValue, nil
 }

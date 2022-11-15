@@ -47,10 +47,12 @@ func TestSimple(t *testing.T) {
 		}
 	}
 
-	db.Set([]byte("hello"), []byte("world"))
+	db.Set([]byte("hello1"), []byte("world1"))
+	db.Set([]byte("hello3"), []byte("world3"))
 	db.Set([]byte("hello2"), []byte("world2"))
 
-	checkFound([]byte("hello"), []byte("world"))
+	checkFound([]byte("hello1"), []byte("world1"))
 	checkFound([]byte("hello2"), []byte("world2"))
+	checkFound([]byte("hello3"), []byte("world3"))
 	checkMissing([]byte("missing"))
 }
