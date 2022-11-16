@@ -55,4 +55,9 @@ func TestSimple(t *testing.T) {
 	checkFound([]byte("hello2"), []byte("world2"))
 	checkFound([]byte("hello3"), []byte("world3"))
 	checkMissing([]byte("missing"))
+
+	// err = visualizeRoot(db.bufferPool.pages[0])
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
 }
