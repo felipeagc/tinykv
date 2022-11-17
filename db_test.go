@@ -21,7 +21,6 @@ func TestSimple(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
 
 	checkFound := func(key, value []byte) {
 		foundValue, err := db.Get(key)
@@ -55,6 +54,18 @@ func TestSimple(t *testing.T) {
 	checkFound([]byte("hello2"), []byte("world2"))
 	checkFound([]byte("hello3"), []byte("world3"))
 	checkMissing([]byte("missing"))
+
+	db.Close()
+
+
+	db, err = OpenDB(DB_PATH)
+	if err != nil {
+		panic(err)
+	}
+
+	checkFound([]byte("hello1"), []byte("world1"))
+	checkFound([]byte("hello2"), []byte("world2"))
+	checkFound([]byte("hello3"), []byte("world3"))
 
 	// err = visualizeRoot(db.bufferPool.pages[0])
 	// if err != nil {

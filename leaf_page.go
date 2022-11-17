@@ -6,6 +6,21 @@ import (
 	"fmt"
 )
 
+// Leaf page layout:
+// | OFFSET | SIZE | DATA
+// |      0 |    1 | page type
+// |      1 |    1 | is root
+// |      2 |    4 | parent index
+// |      6 |    4 | cell count
+// |     10 |    4 | cells
+
+// Cell layout:
+// | OFFSET | SIZE | DATA
+// |      0 |    4 | key length
+// |      4 |   kl | key
+// |   4+kl |    4 | value length
+// |   8+kl |   vl | value
+
 type leafPage struct {
 	index      uint32
 	cachedData []byte
