@@ -78,27 +78,27 @@ func (p *leafPage) setIsRoot(isRoot bool) {
 }
 
 func (p *leafPage) getParentIndex() int32 {
-	return int32(binary.LittleEndian.Uint32(p.data[2:6]))
+	return int32(binary.LittleEndian.Uint32(p.data[4:8]))
 }
 
 func (p *leafPage) setParentIndex(parentIndex int32) {
-	binary.LittleEndian.PutUint32(p.data[2:6], uint32(parentIndex))
+	binary.LittleEndian.PutUint32(p.data[4:8], uint32(parentIndex))
 }
 
 func (p *leafPage) getNumCells() uint32 {
-	return binary.LittleEndian.Uint32(p.data[10:14])
+	return binary.LittleEndian.Uint32(p.data[12:16])
 }
 
 func (p *leafPage) setNumCells(numCells uint32) {
-	binary.LittleEndian.PutUint32(p.data[10:14], numCells)
+	binary.LittleEndian.PutUint32(p.data[12:16], numCells)
 }
 
 func (p *leafPage) setFreeSpace(freeSpace uint32) {
-	binary.LittleEndian.PutUint32(p.data[6:10], freeSpace)
+	binary.LittleEndian.PutUint32(p.data[8:12], freeSpace)
 }
 
 func (p *leafPage) getFreeSpace() uint32 {
-	return binary.LittleEndian.Uint32(p.data[6:10])
+	return binary.LittleEndian.Uint32(p.data[8:12])
 }
 
 // Adds a cell to the page

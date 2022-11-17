@@ -61,17 +61,33 @@ func (p *internalPage) setIsRoot(isRoot bool) {
 }
 
 func (p *internalPage) getParentIndex() int32 {
-	return int32(binary.LittleEndian.Uint32(p.data[2:6]))
+	return int32(binary.LittleEndian.Uint32(p.data[4:8]))
 }
 
 func (p *internalPage) setParentIndex(parentIndex int32) {
-	binary.LittleEndian.PutUint32(p.data[2:6], uint32(parentIndex))
+	binary.LittleEndian.PutUint32(p.data[4:8], uint32(parentIndex))
 }
 
 func (p *internalPage) getNumCells() uint32 {
-	return binary.LittleEndian.Uint32(p.data[10:14])
+	return binary.LittleEndian.Uint32(p.data[16:20])
 }
 
 func (p *internalPage) setNumCells(numCells uint32) {
-	binary.LittleEndian.PutUint32(p.data[10:14], numCells)
+	binary.LittleEndian.PutUint32(p.data[16:20], numCells)
+}
+
+func (p *internalPage) setRightChildIndex(rightChildIndex uint32) {
+	binary.LittleEndian.PutUint32(p.data[12:16], rightChildIndex)
+}
+
+func (p *internalPage) getRightChildIndex() uint32 {
+	return binary.LittleEndian.Uint32(p.data[12:16])
+}
+
+func (p *internalPage) setFreeSpace(freeSpace uint32) {
+	binary.LittleEndian.PutUint32(p.data[8:12], freeSpace)
+}
+
+func (p *internalPage) getFreeSpace() uint32 {
+	return binary.LittleEndian.Uint32(p.data[8:12])
 }
