@@ -51,19 +51,16 @@ func (bp *bufferPool) getPageCount() (uint32, error) {
 	return pageCount, nil
 }
 
-func (bp *bufferPool) addPage() (page, error) {
-	pageCount, err := bp.getPageCount()
+func (bp *bufferPool) addPage(page page) (error) {
+	pageIndex, err := bp.getPageCount()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	page := newLeafPage(pageCount, nil)
-
 	bp.pages = append(bp.pages, page)
+	bp.flushPage(pageIndex)
 
-	bp.flushPage(page.index)
-
-	return page, nil
+	return nil
 }
 
 func (bp *bufferPool) getPage(pageIndex uint32) (page, error) {
@@ -89,7 +86,7 @@ func (bp *bufferPool) getPage(pageIndex uint32) (page, error) {
 		case pageKindUnallocated:
 			panic("TODO: import unallocated page")
 		case pageKindLeaf:
-			page = newLeafPage(pageIndex, pageData)
+			page = newLeafPage(pageData)
 		case pageKindInternal:
 			panic("TODO: import internal page")
 		default:

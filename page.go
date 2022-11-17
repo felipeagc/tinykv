@@ -13,8 +13,19 @@ const (
 
 type page interface {
 	getKind() pageKind
-	getIndex() uint32
 	getData() []byte
+}
+
+type pageBase struct {
+	data []byte
+}
+
+func (p *pageBase) getKind() pageKind {
+	return pageKind(p.data[0])
+}
+
+func (p *pageBase) getData() []byte {
+	return p.data
 }
 
 type treePage interface {

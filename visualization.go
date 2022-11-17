@@ -8,10 +8,12 @@ import (
 	"strings"
 )
 
-func visualizeRoot(p page) error {
+func visualizeDB(db *DB) error {
+	rootPage := db.bufferPool.pages[0]
+
 	var sb strings.Builder
 	sb.WriteString("digraph G { rank=same; rankdir=\"LR\"; \n")
-	visualizePage(p, &sb)
+	visualizePage(rootPage, 0, &sb)
 	sb.WriteString("}\n")
 
 	err := os.WriteFile("/tmp/db.dot", []byte(sb.String()), 0600)
@@ -32,19 +34,19 @@ func visualizeRoot(p page) error {
 	return nil
 }
 
-func visualizePage(p page, sb *strings.Builder) {
+func visualizePage(p page, pageIndex uint32, sb *strings.Builder) {
 	switch p.(type) {
 	case *leafPage:
 		leaf := p.(*leafPage)
 		usedBytes := pageSize - leaf.getFreeSpace()
-		label := fmt.Sprintf("Page %d (%d/%d bytes used)", leaf.getIndex(), usedBytes, pageSize)
+		label := fmt.Sprintf("Page %d (%d/%d bytes used)", pageIndex, usedBytes, pageSize)
 
 		sb.WriteString(fmt.Sprintf(`	subgraph cluster_p%d {
 		style=filled;
 		color=lightgrey;
 		node [style=filled,color=white];
 		label = "%s";
-`, leaf.getIndex(), label))
+`, pageIndex, label))
 
 		lastNode := ""
 		leaf.iterCells(func(key, value []byte, offset uint32) bool {

@@ -6,36 +6,40 @@ import (
 	"fmt"
 )
 
-// Leaf page layout:
-// | OFFSET | SIZE | DATA
-// |      0 |    1 | page type
-// |      1 |    1 | is root
-// |      2 |    4 | parent index
-// |      6 |    4 | cell count
-// |     10 |    4 | cells
+/*
 
-// Cell layout:
-// | OFFSET | SIZE | DATA
-// |      0 |    4 | key length
-// |      4 |   kl | key
-// |   4+kl |    4 | value length
-// |   8+kl |   vl | value
+Leaf page layout:
+| OFFSET | SIZE | DATA
+|      0 |    1 | page type
+|      1 |    1 | is root
+|      2 |    4 | parent index
+|      6 |    4 | cell count
+|     10 |      | cells
+
+Cell layout:
+| OFFSET | SIZE | DATA
+|      0 |    4 | key length
+|      4 |   kl | key
+|   4+kl |    4 | value length
+|   8+kl |   vl | value
+
+*/
 
 type leafPage struct {
-	index      uint32
-	cachedData []byte
+	pageBase
 }
 
-func newLeafPage(index uint32, data []byte) *leafPage {
+func newLeafPage(data []byte) *leafPage {
 	p := &leafPage{
-		index:      index,
-		cachedData: data,
+		pageBase{
+			data:  data,
+		},
 	}
 
-	if p.cachedData == nil {
-		p.cachedData = make([]uint8, pageSize)
+	if p.data == nil {
+		p.data = make([]uint8, pageSize)
 
-		p.cachedData[0] = uint8(pageKindLeaf)
+		p.data[0] = uint8(pageKindLeaf)
 		p.setNumCells(0)
 		p.setIsRoot(true)
 		p.setParentIndex(-1)
@@ -44,45 +48,31 @@ func newLeafPage(index uint32, data []byte) *leafPage {
 	return p
 }
 
-func (p *leafPage) getData() []byte {
-	return p.cachedData
-}
-
-func (p *leafPage) getIndex() uint32 {
-	return p.index
-}
-
-func (p *leafPage) getKind() pageKind {
-	return pageKind(p.cachedData[0])
-}
-
 func (p *leafPage) isRoot() bool {
-	return p.cachedData[1] == 1
+	return p.data[1] == 1
 }
 
 func (p *leafPage) setIsRoot(isRoot bool) {
-	p.cachedData[1] = 0
+	p.data[1] = 0
 	if isRoot {
-		p.cachedData[1] = 1
+		p.data[1] = 1
 	}
 }
 
-// Returns the parent page's index
 func (p *leafPage) getParentIndex() int32 {
-	return int32(binary.LittleEndian.Uint32(p.cachedData[2:6]))
+	return int32(binary.LittleEndian.Uint32(p.data[2:6]))
 }
 
 func (p *leafPage) setParentIndex(parentIndex int32) {
-	binary.LittleEndian.PutUint32(p.cachedData[2:6], uint32(parentIndex))
+	binary.LittleEndian.PutUint32(p.data[2:6], uint32(parentIndex))
 }
 
-// Returns the number of cells
 func (p *leafPage) getNumCells() uint32 {
-	return binary.LittleEndian.Uint32(p.cachedData[6:10])
+	return binary.LittleEndian.Uint32(p.data[6:10])
 }
 
 func (p *leafPage) setNumCells(numCells uint32) {
-	binary.LittleEndian.PutUint32(p.cachedData[6:10], numCells)
+	binary.LittleEndian.PutUint32(p.data[6:10], numCells)
 }
 
 func (p *leafPage) getFreeSpace() uint32 {
@@ -99,14 +89,14 @@ func (p *leafPage) iterCells(callback func(key, value []byte, offset uint32) boo
 	for i := uint32(0); i < p.getNumCells(); i++ {
 		entryOffset := offset
 
-		keyLen := binary.LittleEndian.Uint32(p.cachedData[offset : offset+4])
+		keyLen := binary.LittleEndian.Uint32(p.data[offset : offset+4])
 		offset += 4
-		key := p.cachedData[offset : offset+keyLen]
+		key := p.data[offset : offset+keyLen]
 		offset += keyLen
 
-		valueLen := binary.LittleEndian.Uint32(p.cachedData[offset : offset+4])
+		valueLen := binary.LittleEndian.Uint32(p.data[offset : offset+4])
 		offset += 4
-		value := p.cachedData[offset : offset+valueLen]
+		value := p.data[offset : offset+valueLen]
 		offset += valueLen
 
 		if !callback(key, value, entryOffset) {
@@ -121,6 +111,7 @@ func (p *leafPage) addCell(key, value []byte) error {
 	requiredSpace := uint32(len(key) + len(value) + 8)
 	freeSpace := p.getFreeSpace()
 	if requiredSpace > freeSpace {
+		// TODO: split current page
 		return fmt.Errorf("not enough space left in page. required: %d, free space: %d", requiredSpace, freeSpace)
 	}
 
@@ -138,22 +129,22 @@ func (p *leafPage) addCell(key, value []byte) error {
 
 	rhsSize := uint32(pageSize) - offset - freeSpace
 	if rhsSize > 0 {
-		rhsSrc := p.cachedData[offset : offset+rhsSize]
-		rhsDst := p.cachedData[offset+requiredSpace : offset+requiredSpace+rhsSize]
+		rhsSrc := p.data[offset : offset+rhsSize]
+		rhsDst := p.data[offset+requiredSpace : offset+requiredSpace+rhsSize]
 		copy(rhsDst, rhsSrc)
 	}
 
 	keyLen := uint32(len(key))
 	valueLen := uint32(len(value))
 
-	binary.LittleEndian.PutUint32(p.cachedData[offset:offset+4], keyLen)
+	binary.LittleEndian.PutUint32(p.data[offset:offset+4], keyLen)
 	offset += 4
-	copy(p.cachedData[offset:offset+keyLen], key)
+	copy(p.data[offset:offset+keyLen], key)
 	offset += keyLen
 
-	binary.LittleEndian.PutUint32(p.cachedData[offset:offset+4], valueLen)
+	binary.LittleEndian.PutUint32(p.data[offset:offset+4], valueLen)
 	offset += 4
-	copy(p.cachedData[offset:offset+valueLen], value)
+	copy(p.data[offset:offset+valueLen], value)
 	offset += valueLen
 
 	p.setNumCells(p.getNumCells() + 1)

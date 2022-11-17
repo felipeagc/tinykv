@@ -10,7 +10,7 @@ func OpenDB(path string) (*DB, error) {
 		return nil, err
 	}
 
-	_, err = bp.addPage()
+	err = bp.addPage(newLeafPage(nil))
 	if err != nil {
 		bp.close()
 		return nil, err
