@@ -7,11 +7,12 @@ Internal page layout:
 | OFFSET | SIZE | DATA
 |      0 |    1 | page type
 |      1 |    1 | is root
-|      2 |    4 | parent index
-|      6 |    4 | free space
-|     10 |    4 | right child index
-|     14 |    4 | cell count
-|     18 |      | cells
+|      2 |    2 | reserved
+|      4 |    4 | parent index
+|      8 |    4 | free space
+|     12 |    4 | right child index
+|     16 |    4 | cell count
+|     20 |      | cells
 
 Cell layout:
 | OFFSET | SIZE | DATA
@@ -19,6 +20,11 @@ Cell layout:
 |      4 |   kl | key
 |   4+kl |    4 | left child index
 */
+
+const (
+	internalPageFirstCellOffset  uint32 = 20
+	internalPageDefaultFreeSpace uint32 = pageSize - internalPageFirstCellOffset
+)
 
 type internalPage struct {
 	pageBase
