@@ -8,15 +8,16 @@ Internal page layout:
 |      0 |    1 | page type
 |      1 |    1 | is root
 |      2 |    4 | parent index
-|      6 |    4 | right child index
-|     10 |    4 | cell count
-|     14 |      | cells
+|      6 |    4 | free space
+|     10 |    4 | right child index
+|     14 |    4 | cell count
+|     18 |      | cells
 
 Cell layout:
 | OFFSET | SIZE | DATA
-|      0 |    4 | left child index
-|      4 |    4 | key length
-|      8 |   kl | key
+|      0 |    4 | key length
+|      4 |   kl | key
+|   4+kl |    4 | left child index
 */
 
 type internalPage struct {

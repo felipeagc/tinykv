@@ -34,7 +34,6 @@ type treePage interface {
 	getParentIndex() int32
 	getNumCells() uint32
 	getFreeSpace() uint32
-	iterCells(callback func(key, value []byte, offset uint32) bool) uint32
 	addCell(key, value []byte) error
 	findCell(key []byte) ([]byte, error)
 }

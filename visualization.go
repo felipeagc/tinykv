@@ -49,21 +49,21 @@ func visualizePage(p page, pageIndex uint32, sb *strings.Builder) {
 `, pageIndex, label))
 
 		lastNode := ""
-		leaf.iterCells(func(key, value []byte, offset uint32) bool {
-			keyName := "n" + hex.EncodeToString(key)
+		for iter := leaf.iter(); iter.hasNext(); {
+			cell := iter.next()
+			keyName := "n" + hex.EncodeToString(cell.key)
 			sb.WriteString(fmt.Sprintf(
 				"		%s [label=\"%s = %s\\noffset = %d\"];\n",
 				keyName,
-				string(key),
-				string(value),
-				offset,
+				string(cell.key),
+				string(cell.value),
+				cell.offset,
 			))
 			if lastNode != "" {
 				sb.WriteString(fmt.Sprintf("		%s -> %s;\n", lastNode, keyName))
 			}
 			lastNode = keyName
-			return true
-		})
+		}
 
 		sb.WriteString("	}\n")
 	}

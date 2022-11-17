@@ -7,14 +7,15 @@ import (
 )
 
 /*
-
 Leaf page layout:
 | OFFSET | SIZE | DATA
 |      0 |    1 | page type
 |      1 |    1 | is root
-|      2 |    4 | parent index
-|      6 |    4 | cell count
-|     10 |      | cells
+|      2 |    2 | reserved
+|      4 |    4 | parent index
+|      8 |    4 | free space
+|     12 |    4 | cell count
+|     16 |      | cells
 
 Cell layout:
 | OFFSET | SIZE | DATA
@@ -22,27 +23,44 @@ Cell layout:
 |      4 |   kl | key
 |   4+kl |    4 | value length
 |   8+kl |   vl | value
-
 */
+
+const (
+	leafPageFirstCellOffset  uint32 = 16
+	leafPageDefaultFreeSpace uint32 = pageSize - leafPageFirstCellOffset
+)
 
 type leafPage struct {
 	pageBase
 }
 
+type leafCell struct {
+	key    []byte
+	value  []byte
+	offset uint32
+}
+
+type leafCellIterator struct {
+	p           *leafPage
+	currentCell uint32
+	offset      uint32
+}
+
 func newLeafPage(data []byte) *leafPage {
 	p := &leafPage{
 		pageBase{
-			data:  data,
+			data: data,
 		},
 	}
 
 	if p.data == nil {
-		p.data = make([]uint8, pageSize)
+		p.data = make([]byte, pageSize)
 
-		p.data[0] = uint8(pageKindLeaf)
+		p.data[0] = byte(pageKindLeaf)
 		p.setNumCells(0)
 		p.setIsRoot(true)
 		p.setParentIndex(-1)
+		p.setFreeSpace(leafPageDefaultFreeSpace)
 	}
 
 	return p
@@ -68,42 +86,19 @@ func (p *leafPage) setParentIndex(parentIndex int32) {
 }
 
 func (p *leafPage) getNumCells() uint32 {
-	return binary.LittleEndian.Uint32(p.data[6:10])
+	return binary.LittleEndian.Uint32(p.data[10:14])
 }
 
 func (p *leafPage) setNumCells(numCells uint32) {
-	binary.LittleEndian.PutUint32(p.data[6:10], numCells)
+	binary.LittleEndian.PutUint32(p.data[10:14], numCells)
+}
+
+func (p *leafPage) setFreeSpace(freeSpace uint32) {
+	binary.LittleEndian.PutUint32(p.data[6:10], freeSpace)
 }
 
 func (p *leafPage) getFreeSpace() uint32 {
-	offset := p.iterCells(func(key, value []byte, entryOffset uint32) bool {
-		return true
-	})
-	return uint32(pageSize) - offset
-}
-
-// Iterates through all of the cells of this page in order
-// and returns the final byte offset where the iteration ended.
-func (p *leafPage) iterCells(callback func(key, value []byte, offset uint32) bool) uint32 {
-	offset := uint32(10)
-	for i := uint32(0); i < p.getNumCells(); i++ {
-		entryOffset := offset
-
-		keyLen := binary.LittleEndian.Uint32(p.data[offset : offset+4])
-		offset += 4
-		key := p.data[offset : offset+keyLen]
-		offset += keyLen
-
-		valueLen := binary.LittleEndian.Uint32(p.data[offset : offset+4])
-		offset += 4
-		value := p.data[offset : offset+valueLen]
-		offset += valueLen
-
-		if !callback(key, value, entryOffset) {
-			break
-		}
-	}
-	return offset
+	return binary.LittleEndian.Uint32(p.data[6:10])
 }
 
 // Adds a cell to the page
@@ -117,15 +112,16 @@ func (p *leafPage) addCell(key, value []byte) error {
 
 	// Calculate the offset of the new cell
 	offset := uint32(pageSize) - freeSpace
-	p.iterCells(func(entryKey, entryValue []byte, entryOffset uint32) bool {
-		if bytes.Compare(entryKey, key) == 1 {
+
+	for iter := p.iter(); iter.hasNext(); {
+		cell := iter.next()
+		if bytes.Compare(cell.key, key) == 1 {
 			// If we find a key that's greater than the one we're adding,
 			// we've found our insertion point
-			offset = entryOffset
-			return false
+			offset = cell.offset
+			break
 		}
-		return true
-	})
+	}
 
 	rhsSize := uint32(pageSize) - offset - freeSpace
 	if rhsSize > 0 {
@@ -147,6 +143,7 @@ func (p *leafPage) addCell(key, value []byte) error {
 	copy(p.data[offset:offset+valueLen], value)
 	offset += valueLen
 
+	p.setFreeSpace(freeSpace - requiredSpace)
 	p.setNumCells(p.getNumCells() + 1)
 
 	return nil
@@ -154,13 +151,50 @@ func (p *leafPage) addCell(key, value []byte) error {
 
 func (p *leafPage) findCell(key []byte) ([]byte, error) {
 	var foundValue []byte = nil
-	p.iterCells(func(entryKey, entryValue []byte, entryOffset uint32) bool {
-		if bytes.Equal(key, entryKey) {
-			foundValue = make([]byte, len(entryValue))
-			copy(foundValue, entryValue)
-			return false
+	for iter := p.iter(); iter.hasNext(); {
+		cell := iter.next()
+		if bytes.Equal(key, cell.key) {
+			foundValue = make([]byte, len(cell.value))
+			copy(foundValue, cell.value)
+			break
 		}
-		return true
-	})
+	}
 	return foundValue, nil
+}
+
+func (p *leafPage) iter() leafCellIterator {
+	return leafCellIterator{p: p}
+}
+
+func (it *leafCellIterator) hasNext() bool {
+	return it.currentCell < it.p.getNumCells()
+}
+
+func (it *leafCellIterator) next() leafCell {
+	if it.currentCell == 0 {
+		it.offset = leafPageFirstCellOffset
+	}
+	if !it.hasNext() {
+		panic("leaf cell iterator reached the end")
+	}
+
+	cellOffset := it.offset
+
+	keyLen := binary.LittleEndian.Uint32(it.p.data[it.offset : it.offset+4])
+	it.offset += 4
+	key := it.p.data[it.offset : it.offset+keyLen]
+	it.offset += keyLen
+
+	valueLen := binary.LittleEndian.Uint32(it.p.data[it.offset : it.offset+4])
+	it.offset += 4
+	value := it.p.data[it.offset : it.offset+valueLen]
+	it.offset += valueLen
+
+	it.currentCell++
+
+	return leafCell{
+		key:    key,
+		value:  value,
+		offset: cellOffset,
+	}
 }
