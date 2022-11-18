@@ -3,7 +3,7 @@ package tinykv
 type pageKind uint8
 
 const (
-	pageSize uint32 = 4096
+	defaultPageSize uint32 = 4096
 
 	pageKindUnallocated pageKind = iota
 	pageKindHeader

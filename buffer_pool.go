@@ -47,11 +47,11 @@ func (bp *bufferPool) getPageCount() (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	pageCount := uint32(fileInfo.Size()) / pageSize
+	pageCount := uint32(fileInfo.Size()) / defaultPageSize
 	return pageCount, nil
 }
 
-func (bp *bufferPool) addPage(page page) (error) {
+func (bp *bufferPool) addPage(page page) error {
 	pageIndex, err := bp.getPageCount()
 	if err != nil {
 		return err
@@ -71,9 +71,9 @@ func (bp *bufferPool) getPage(pageIndex uint32) (page, error) {
 
 	if bp.pages[pageIndex] == nil {
 		// Page is not cached in memory, so let's allocate space for it
-		pageData := make([]uint8, pageSize)
+		pageData := make([]uint8, defaultPageSize)
 
-		pageOffset := pageIndex * pageSize
+		pageOffset := pageIndex * defaultPageSize
 		_, err := bp.file.ReadAt(pageData, int64(pageOffset))
 		if err != nil {
 			return nil, err
@@ -105,6 +105,6 @@ func (bp *bufferPool) flushPage(pageIndex uint32) error {
 		return errors.New("tried to flush unloaded page")
 	}
 
-	_, err := bp.file.WriteAt(page.getData(), int64(pageIndex*pageSize))
+	_, err := bp.file.WriteAt(page.getData(), int64(pageIndex*defaultPageSize))
 	return err
 }

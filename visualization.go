@@ -38,8 +38,8 @@ func visualizePage(p page, pageIndex uint32, sb *strings.Builder) {
 	switch p.(type) {
 	case *leafPage:
 		leaf := p.(*leafPage)
-		usedBytes := pageSize - leaf.getFreeSpace()
-		label := fmt.Sprintf("Page %d (%d/%d bytes used)", pageIndex, usedBytes, pageSize)
+		usedBytes := defaultPageSize - leaf.getFreeSpace()
+		label := fmt.Sprintf("Page %d (%d/%d bytes used)", pageIndex, usedBytes, defaultPageSize)
 
 		sb.WriteString(fmt.Sprintf(`	subgraph cluster_p%d {
 		style=filled;
